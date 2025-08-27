@@ -14,6 +14,7 @@
   - [SSH server](#ssh-server)
   - [Postgres server](#postgres-server)
   - [Any service or server on a different machine](#any-service-or-server-on-a-different-machine)
+- [Troubleshooting](#troubleshooting)
 - [Add Authentication with Traffic Policy](#add-authentication-with-traffic-policy)
   - [Create a Traffic Policy file `policy.yaml`](#create-a-traffic-policy-file-policyyaml)
   - [Add the OAuth Action with Google](#add-the-oauth-action-with-google)
@@ -30,6 +31,8 @@
   - [Start Public Endpoint with `forward-internal` action](#start-public-endpoint-with-forward-internal-action)
 - [Manage traffic in other ways](#manage-traffic-in-other-ways)
   - [Add path-based routing](#add-path-based-routing)
+  - [Route traffic by anything](#route-traffic-by-anything)
+  - [Multiplex to Internal Services from a Single Domain](#multiplex-to-internal-services-from-a-single-domain)
   - [Add rate limiting](#add-rate-limiting)
   - [Block search and AI bots](#block-search-and-ai-bots)
   - [Add headers](#add-headers)
@@ -37,8 +40,11 @@
     - [Via Traffic Policy](#via-traffic-policy)
   - [Restrict access by IPs](#restrict-access-by-ips)
   - [Block all the potentially bad things](#block-all-the-potentially-bad-things)
-  - [Route traffic by anything](#route-traffic-by-anything)
 - [CLI Flags](#cli-flags)
+  - [`url`](#url)
+  - [`traffic-policy-file`](#traffic-policy-file)
+  - [`traffic-policy-url`](#traffic-policy-url)
+  - [`pooling-enabled`](#pooling-enabled)
 
 # Getting Started
 
@@ -104,7 +110,8 @@ ngrok http 80
 helm repo add ngrok https://charts.ngrok.com
 
 # Add ngrok API key and authtoken
-export NGROK_AUTHTOKEN=YOUR_NGROK_AUTHTOKEN_HERE
+export NGROK_AUTHTOKEN=YOUR_NGROK_AUTHTOKEN
+export NGROK_API_KEY=YOUR_NGROK_API_KEY
 
 helm install ngrok-operator ngrok/ngrok-operator \
   --namespace ngrok-operator \
@@ -138,8 +145,6 @@ python3 -m pip install ngrok
 # Rust: https://ngrok.com/downloads/rust
 # Install ngrok-rust package and the required dependencies
 cargo add ngrok -F axum && cargo add axum && cargo add tokio -F rt-multi-thread -F macros
-
-# Java: https://ngrok.com/downloads/java
 ```
 
 # Exposing different kinds of servers
@@ -175,6 +180,22 @@ ngrok tcp 5432
 
 ```bash
 ngrok http http://192.168.1.50:8080
+```
+
+# Troubleshooting
+
+```bash
+ngrok diagnose
+
+# To test IPv6 connectivity
+ngrok diagnose --ipv6 true
+
+# To test connectivity between the ngrok agent and all ngrok points of presence
+ngrok diagnose --region all
+
+# For a verbose report
+ngrok diagnose -w out.txt #OR
+ngrok diagnose --write-report out.txt
 ```
 
 # Add Authentication with Traffic Policy
@@ -310,12 +331,43 @@ on_http_request:
       - "req.path.startsWith('/api/')"
     actions:
       - type: forward-internal
-        config: { url: https://api.internal }
+        config:
+          url: https://api.internal
   - expressions:
       - "req.path.startsWith('/app/')"
     actions:
       - type: forward-internal
-        config: { url: https://app.internal }
+        config:
+          url: https://app.internal
+```
+
+## Route traffic by anything
+
+```yaml
+# policy.yaml
+# Host-based and header-based dynamic forwarding to internal endpoints via forward-internal action
+on_http_request:
+  - expressions:
+      - "req.host == 'api.example.com'"
+    actions:
+      - type: forward-internal
+        config: { url: https://api.internal }
+  - expressions:
+      - "getReqHeader('X-Tenant') != ''"
+    actions:
+      - type: forward-internal
+        config: { url: https://tenant.internal }
+```
+
+## Multiplex to Internal Services from a Single Domain
+
+```yaml
+# policy.yaml
+on_http_request:
+  - actions:
+      - type: forward-internal
+        config:
+          url: https://${req.host.split(".$NGROK_DOMAIN")[0]}.internal
 ```
 
 ## Add rate limiting
@@ -428,24 +480,33 @@ on_http_response:
       - type: owasp-crs-response
 ```
 
-## Route traffic by anything
-
-```yaml
-# policy.yaml
-# Host-based and header-based dynamic forwarding to internal endpoints via forward-internal action
-on_http_request:
-  - expressions:
-      - "req.host == 'api.example.com'"
-    actions:
-      - type: forward-internal
-        config: { url: https://api.internal }
-  - expressions:
-      - "getReqHeader('X-Tenant') != ''"
-    actions:
-      - type: forward-internal
-        config: { url: https://tenant.internal }
-```
-
 # CLI Flags
 
+## `url`
 
+```bash
+# Choose a URL instead of random assignment
+ngrok http 8080 --url https://baz.ngrok.dev
+```
+
+## `traffic-policy-file`
+
+```bash
+# Manipulate traffic to your endpoint with a traffic policy file
+ngrok http 8080 --url https://baz.ngrok.dev --traffic-policy-file policy.yaml
+```
+
+## `traffic-policy-url`
+
+```bash
+# Manipulate traffic to your endpoint with a traffic policy file
+ngrok http 8080 --url https://baz.ngrok.dev policy --traffic-policy-url https://example.com/policy.yml
+```
+
+## `pooling-enabled`
+
+```bash
+# Load Balance (different ports)
+ngrok http 8080 --url https://api.example.com --pooling-enabled
+ngrok http 8081 --url https://api.example.com --pooling-enabled
+```
