@@ -499,7 +499,7 @@ ngrok http 8080 --url https://baz.ngrok.dev --traffic-policy-file policy.yaml
 ## `traffic-policy-url`
 
 ```bash
-# Manipulate traffic to your endpoint with a traffic policy file
+# Manipulate traffic to your endpoint with a traffic policy URL
 ngrok http 8080 --url https://baz.ngrok.dev policy --traffic-policy-url https://example.com/policy.yml
 ```
 
