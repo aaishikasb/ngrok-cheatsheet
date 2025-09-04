@@ -51,10 +51,19 @@ List of Providers: https://ngrok.com/docs/traffic-policy/actions/oauth/#supporte
 
 # Add webhook verification
 
-```bash
-ngrok http 3000 \
-  --verify-webhook=$PROVIDER \ # Example: GitHub
-  --verify-webhook-secret=$SPROVIDER_TOKEN
+```yaml
+on_http_request:
+  - actions:
+      - type: verify-webhook
+        config:
+          provider: gitlab
+          secret: secret!
+      - type: custom-response
+        config:
+          status_code: 200
+          headers:
+            content-type: text/plain
+          body: GitLab webhook verified
 ```
 
 List of Providers: https://ngrok.com/docs/traffic-policy/actions/verify-webhook/#supported-providers
